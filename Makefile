@@ -1,40 +1,43 @@
+PY=.\.venv\Scripts\python.exe
+PYTEST=.\.venv\Scripts\python.exe -m pytest
+
 .PHONY: seed up-bare down-bare drill-baseline drill-dr rto test clean
 
 seed:
-	python3 state/seed_vectors.py --region a --docs 200
-	python3 state/seed_vectors.py --region b --docs 0 --weights-mb 0
-	printf a > edge/active_region
+	$(PY) state/seed_vectors.py --region a --docs 200
+	$(PY) state/seed_vectors.py --region b --docs 0 --weights-mb 0
+	pwsh -Command "Set-Content -Path edge/active_region -Value 'a' -NoNewline"
 
 up-bare:
-	bash scripts/up_bare.sh
+	pwsh -File scripts/up_bare.ps1
 
 down-bare:
-	bash scripts/down_bare.sh
+	pwsh -File scripts/down_bare.ps1
 
-# Bước 2: baseline không DR — dùng đúng script sinh viên sẽ chạy tay
+# Buoc 2: baseline khong co DR
 drill-baseline:
-	python3 loadgen/traffic.py --duration 40 --rps 2 --out reports/drill-1-nodr.jsonl &
-	sleep 8; python3 chaos/kill_region.py --region a --mode netblock --mock
-	wait
+	pwsh -Command "Start-Process -FilePath '.venv\Scripts\python.exe' -ArgumentList 'loadgen/traffic.py','--duration','40','--rps','2','--out','reports/drill-1-nodr.jsonl' -WorkingDirectory '.' -NoNewWindow -PassThru | Out-Null; Start-Sleep 8; .venv\Scripts\python.exe chaos/kill_region.py --region a --mode netblock --mock; Start-Sleep 40"
 
-# Bước 4: replay attack sau khi contain xong
+# Buoc 4: replay attack sau khi contain xong
 # replicate.py phai chay TRUOC va co it nhat 1 chu ky xong, khong thi failover.py
 # se chet o buoc 2_restore_snapshot vi chua tung co snapshot nao duoc put.
 drill-dr:
-	python3 state/ingest.py --region a --rate 0.5 --duration 150 &
-	python3 state/replicate.py --every 30 --duration 150 --backend fs &
-	sleep 5
-	python3 loadgen/traffic.py --duration 100 --rps 2 --out reports/drill-2-withdr.jsonl &
-	python3 dr/health_checker.py --interval 5 --threshold 3 --duration 100 --out reports/health-events.jsonl &
-	sleep 12; python3 chaos/kill_region.py --region a --mode netblock --mock
+	pwsh -Command "Start-Process -FilePath '.venv\Scripts\python.exe' -ArgumentList 'state/ingest.py','--region','a','--rate','0.5','--duration','150' -WorkingDirectory '.' -NoNewWindow -PassThru | Out-Null"
+	pwsh -Command "Start-Process -FilePath '.venv\Scripts\python.exe' -ArgumentList 'state/replicate.py','--every','30','--duration','150','--backend','fs' -WorkingDirectory '.' -NoNewWindow -PassThru | Out-Null"
+	pwsh -Command "Start-Sleep 5; Start-Process -FilePath '.venv\Scripts\python.exe' -ArgumentList 'loadgen/traffic.py','--duration','100','--rps','2','--out','reports/drill-2-withdr.jsonl' -WorkingDirectory '.' -NoNewWindow -PassThru | Out-Null; Start-Process -FilePath '.venv\Scripts\python.exe' -ArgumentList 'dr/health_checker.py','--interval','5','--threshold','3','--duration','100','--out','reports/health-events.jsonl' -WorkingDirectory '.' -NoNewWindow -PassThru | Out-Null; Start-Sleep 12; .venv\Scripts\python.exe chaos/kill_region.py --region a --mode netblock --mock"
 
 rto:
-	python3 tools/measure_rto.py --loadgen reports/drill-2-withdr.jsonl --target-rto 300
+	$(PY) tools/measure_rto.py --loadgen reports/drill-2-withdr.jsonl --target-rto 300
 
 test:
-	python3 -m pytest tests/ -v
+	$(PYTEST) tests/ -v
 
 clean:
-	bash scripts/down_bare.sh 2>/dev/null || true
-	rm -rf state/region-a state/region-b state/_replica run
-	rm -f reports/*.jsonl reports/*.json chaos/chaos-events.jsonl
+	pwsh -File scripts/down_bare.ps1
+	Remove-Item -Recurse -Force state/region-a -ErrorAction SilentlyContinue
+	Remove-Item -Recurse -Force state/region-b -ErrorAction SilentlyContinue
+	Remove-Item -Recurse -Force state/_replica -ErrorAction SilentlyContinue
+	Remove-Item -Recurse -Force run -ErrorAction SilentlyContinue
+	Remove-Item -Force reports/*.jsonl -ErrorAction SilentlyContinue
+	Remove-Item -Force reports/*.json -ErrorAction SilentlyContinue
+	Remove-Item -Force chaos/chaos-events.jsonl -ErrorAction SilentlyContinue
