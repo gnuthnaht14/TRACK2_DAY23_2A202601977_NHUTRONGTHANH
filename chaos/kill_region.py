@@ -69,9 +69,14 @@ def pid_of(region: str) -> int | None:
         return None
     pid = int(f.read_text().strip())
     try:
-        os.kill(pid, 0)
-        return pid
-    except OSError:
+        # Windows-compatible: use tasklist to check if process exists
+        import subprocess
+        result = subprocess.run(["tasklist", "/FI", f"IMAGENAME eq python.exe"],
+                               capture_output=True, text=True)
+        if str(pid) in result.stdout:
+            return pid
+        return None
+    except Exception:
         return None
 
 
@@ -93,10 +98,10 @@ def kill(region: str, mode: str, backend: str, force_both: bool, mock: bool):
         pid = pid_of(region)
         if pid is None:
             raise SystemExit(f"khong tim thay PID cua region-{region} trong {PID_DIR}")
-        # netblock: SIGSTOP -> TCP handshake vẫn xong nhưng không ai trả lời => request TREO
-        #           (đúng hành vi của iptables DROP ở tầng app)
-        # stop    : SIGKILL -> cổng đóng => ConnectError ngay
-        os.kill(pid, signal.SIGSTOP if mode == "netblock" else signal.SIGKILL)
+        # Windows: terminate process (no SIGSTOP equivalent)
+        import subprocess
+        subprocess.run(["powershell", "-Command", f"Stop-Process -Id {pid} -Force"],
+                     check=True, capture_output=True)
     else:
         svc = f"serving-{region}"
         if mode == "stop":
@@ -111,8 +116,10 @@ def restore(region: str, backend: str):
     if backend == "bare":
         pid = pid_of(region)
         if pid:
-            os.kill(pid, signal.SIGCONT)
-            return event(action="restore", region=region, method="SIGCONT", pid=pid)
+            import subprocess
+            subprocess.run(["powershell", "-Command", f"Start-Process -Id {pid} -ErrorAction SilentlyContinue"],
+                         check=True, capture_output=True)
+            return event(action="restore", region=region, method="resume_process", pid=pid)
         return event(action="restore", region=region, method="need_manual_start",
                      note="process da bi SIGKILL, chay `make up-bare` lai")
     subprocess.run(["docker", "compose", "start", f"serving-{region}"], check=False)

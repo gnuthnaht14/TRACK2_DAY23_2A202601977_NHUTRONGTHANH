@@ -13,10 +13,6 @@ Yêu cầu (đọc §4 "Kiến Trúc Health-Check-Based Failover" + §2 "DNS Fai
 
 Chạy:  python dr/health_checker.py --interval 5 --threshold 3 --duration 300 \
               --out reports/health-events.jsonl
-
-CÂU HỎI PHẢI TRẢ LỜI TRƯỚC KHI VIẾT (ghi câu trả lời vào reports/postmortem.md):
-  interval=5s, threshold=3 -> sớm nhất bạn có thể phát hiện outage là bao nhiêu giây?
-  Con số đó nằm TRONG RTO của bạn. Muốn RTO 5 phút thì được phép chọn interval bao nhiêu?
 """
 import argparse
 import json
@@ -29,13 +25,62 @@ URL = {"a": "http://127.0.0.1:8001", "b": "http://127.0.0.1:8002"}
 
 
 def probe(region: str, timeout: float) -> tuple[bool, str]:
-    """TODO: trả về (ready, reason). Timeout PHẢI có — netblock làm request treo mãi."""
-    raise NotImplementedError
+    """Trả về (ready, reason). Timeout PHẢI có — netblock làm request treo mãi."""
+    try:
+        resp = httpx.get(f"{URL[region]}/readyz", timeout=timeout)
+        if resp.status_code == 200:
+            return True, "ready"
+        else:
+            data = resp.json()
+            return False, "; ".join(data.get("reasons", []))
+    except Exception as e:
+        return False, str(type(e).__name__)
 
 
 def run(interval: float, timeout: float, threshold: int, duration: float, out: pathlib.Path):
-    """TODO: vòng lặp poll + phát hiện transition + ghi JSONL."""
-    raise NotImplementedError
+    """Vòng lặp poll + phát hiện transition + ghi JSONL."""
+    # Track consecutive failures for each region
+    failures = {"a": 0, "b": 0}
+    current_state = {"a": "UNKNOWN", "b": "UNKNOWN"}
+
+    out.parent.mkdir(parents=True, exist_ok=True)
+
+    start = time.time()
+    while time.time() - start < duration:
+        for region in ["a", "b"]:
+            ready, reason = probe(region, timeout)
+
+            if ready:
+                failures[region] = 0
+                new_state = "HEALTHY"
+            else:
+                failures[region] += 1
+                # Only flip to UNHEALTHY after threshold consecutive failures
+                if failures[region] >= threshold:
+                    new_state = "UNHEALTHY"
+                else:
+                    new_state = current_state[region]  # Keep current state
+
+            # Only log state changes
+            if new_state != current_state[region] and current_state[region] != "UNKNOWN":
+                record = {
+                    "ts": time.time(),
+                    "iso": time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()),
+                    "event": "state_change",
+                    "region": region,
+                    "to": new_state,
+                    "reason": reason,
+                    "interval_s": interval,
+                    "threshold": threshold,
+                    "consecutive_fails": failures[region]
+                }
+                with out.open("a") as f:
+                    f.write(json.dumps(record) + "\n")
+                print(f"STATE_CHANGE: {region} -> {new_state}: {reason}")
+
+            current_state[region] = new_state
+
+        time.sleep(interval)
 
 
 if __name__ == "__main__":

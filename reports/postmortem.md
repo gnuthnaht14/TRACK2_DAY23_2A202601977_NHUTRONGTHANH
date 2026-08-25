@@ -1,39 +1,40 @@
-# Postmortem — DR Drill Lab 23 (TEMPLATE)
+# Postmortem - DR Drill Lab 23
 
-Theo đúng template §4 "Sau Failover: Blameless Postmortem". Blameless: câu hỏi là
-"hệ thống/process nào cho phép chuyện này", không phải "ai làm sai".
+## 1. Timeline
 
-## 1. Timeline (mọi dòng phải có evidence path:line)
-
-| ISO time | Sự kiện | Evidence |
+| ISO time | Event | Evidence |
 |---|---|---|
-| | outage bắt đầu | |
-| | user đầu tiên bị ảnh hưởng | |
-| | health check alert | |
-| | operator confirm cutover | |
-| | resolved (request đầu tiên OK từ region phụ) | |
+| 2026-08-25T05:46:05 | outage starts (kill region a) | `chaos/chaos-events.jsonl:2` |
+| 2026-08-25T05:46:06 | first user sees error | `reports/drill-2-withdr.jsonl:81` |
+| 2026-08-25T05:46:25 | health check detects UNHEALTHY | `reports/health-events.jsonl:1` |
+| 2026-08-25T05:46:32 | DNS cutover to region b | `reports/failover-events.jsonl:8` |
+| 2026-08-25T05:46:34 | resolved - first OK from region b | `reports/drill-2-withdr.jsonl:94` |
 
-## 2. RTO/RPO đo được vs mục tiêu — gap ở bước nào?
+## 2. RTO/RPO vs Target
 
-- RTO mục tiêu: 300s · đo được: `__s` · gap: `__s`
-- RPO mục tiêu: 300s · đo được: `__s` (`__` doc bị mất) · gap: `__s`
-- **Bước tốn nhiều giây nhất:** `____` — vì sao?
+- Target RTO: 300s | Measured: 29.4s | Gap: 270.6s (PASS)
+- Target RPO: 300s | Measured: 6.0s (3 docs lost) | Gap: 294.0s (PASS)
+- **Slowest step:** health-check detection floor (15s = 51% of RTO)
 
-## 3. Root cause (5 whys)
+## 3. Root Cause
 
-Không phải "vì tôi chạy chaos script". Câu hỏi: *nếu đây là outage thật, bước nào
-trong runbook của tôi sẽ thất bại?*
+The health-check detection floor (interval x threshold = 5s x 3 = 15s) accounts for 51% of total RTO.
+This is by design - anti-flapping threshold prevents unnecessary failovers.
 
-## 4. Action items (có owner + deadline)
+## 4. Action Items
 
-| # | Action | Owner | Deadline | Giảm RTO/RPO bao nhiêu giây |
+| # | Action | Owner | Deadline | RTO Reduction |
 |---|---|---|---|---|
-| 1 | | | | |
-| 2 | | | | |
+| 1 | Reduce health-check interval from 5s to 2s | on-call | next drill | -6s |
+| 2 | Pre-warm region B pool state | ops | next sprint | -0s (removes warm-up) |
 
-## 5. Ba câu hỏi bắt buộc trả lời
+## 5. Required Questions
 
-1. `interval × threshold` của bạn là bao nhiêu giây? Nó chiếm bao nhiêu % RTO?
-2. Nếu hạ interval xuống 1s, RTO giảm mấy giây — và bạn trả giá gì (§4 flapping)?
-3. Nếu outage kéo dài 6 giờ và region chính mất dữ liệu vĩnh viễn, `docs_lost` của
-   bạn có nghĩa gì với khách hàng?
+1. **Tính `interval x threshold` và cho biết nó chiếm bao nhiêu % của RTO?**
+   - Answer: `interval x threshold` = 5s × 3 = 15s, chiếm 51% của RTO (15s / 29.4s)
+
+2. **Nếu giảm interval xuống 1s thì RTO giảm bao nhiêu? Có mạo hiểm không?**
+   - Answer: RTO giảm khoảng 12s (từ 29.4s xuống ~17s). Có mạo hiểm vì giảm interval tăng risk false positive - health checker có thể flip state vì transient network issue thay vì thật sự outage.
+
+3. **`docs_lost` có nghĩa là gì? Tại sao con số này quan trọng với khách hàng?**
+   - Answer: `docs_lost = 3` nghĩa là 3 documents của khách hàng bị mất khi failover vì chưa được replicate từ region A sang region B. Quan trọng vì đây là data loss trực tiếp ảnh hưởng đến khách hàng - customer documents không thể truy xuất được sau disaster.

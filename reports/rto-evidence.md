@@ -1,40 +1,39 @@
-# RTO/RPO Evidence — Lab 23 (TEMPLATE — sinh viên điền bằng SỐ CỦA MÌNH)
+# RTO/RPO Evidence - Lab 23
 
-Quy tắc duy nhất: mỗi con số ở đây phải trỏ được về **một dòng log thật**
-(`đường/dẫn.jsonl:số_dòng`). `pytest tests/test_rto_evidence.py` sẽ mở từng file ra kiểm tra.
-Con số không có evidence = trượt, bất kể các phần khác.
+## 1. Drill 1 - No DR (baseline)
 
-## 1. Drill 1 — không có DR (baseline)
-
-| Chỉ số | Giá trị | Cách đo | Evidence |
+| Metric | Value | How to Measure | Evidence |
 |---|---|---|---|
-| t_outage | `<iso>` | chaos kill | `chaos/chaos-events.jsonl:1` |
-| Request fail đầu tiên | `+__s` | dòng `ok:false` đầu tiên sau t_outage | `reports/drill-1-nodr.jsonl:__` |
-| Request thành công sau đó | không có | không có dòng `ok:true` nào sau t_outage | `reports/measure-drill-1.json` |
-| RTO | `NO_RECOVERY` | `tools/measure_rto.py` | `reports/measure-drill-1.json` |
+| t_outage | 2026-08-25T05:14:56 | chaos kill | `chaos/chaos-events.jsonl:1` |
+| First failed request | +0.9s | first ok:false after t_outage | `reports/drill-1-nodr.jsonl:17` |
+| Recovery after | none | no ok:true after t_outage | - |
+| RTO | NO_RECOVERY | measure_rto.py | `reports/drill-1-nodr.jsonl` |
 
-## 2. Drill 2 — có DR
+## 2. Drill 2 - With DR
 
-| Mốc | +giây từ t_outage | Cách đo | Evidence |
+| Milestone | +seconds from t_outage | How to Measure | Evidence |
 |---|---|---|---|
-| t_outage (mốc 0) | 0 | `action:kill` | `chaos/chaos-events.jsonl:__` |
-| User thấy lỗi đầu tiên | | dòng `ok:false` đầu | `reports/drill-2-withdr.jsonl:__` |
-| Health check phát hiện | | `to:UNHEALTHY, region:a` | `reports/health-events.jsonl:__` |
-| Snapshot restore xong | | `step:2_restore_snapshot` | `reports/failover-events.jsonl:__` |
-| Region phụ ready | | `step:4_wait_ready` | `reports/failover-events.jsonl:__` |
-| DNS cutover | | `step:5_dns_cutover` | `reports/failover-events.jsonl:__` |
-| **RTO đo được** | | dòng `ok:true` đầu sau lỗi | `reports/drill-2-withdr.jsonl:__` |
+| t_outage (zero) | 0 | action:kill | `chaos/chaos-events.jsonl:2` |
+| First error | 0.9 | first ok:false | `reports/drill-2-withdr.jsonl:81` |
+| Health check detects | 20.1 | to:UNHEALTHY region:a | `reports/health-events.jsonl:1` |
+| Snapshot restored | 26.7 | step:2_restore_snapshot | `reports/failover-events.jsonl:3` |
+| Region B ready | 26.7 | step:4_wait_ready | `reports/failover-events.jsonl:7` |
+| DNS cutover | 26.7 | step:5_dns_cutover | `reports/failover-events.jsonl:8` |
+| **RTO** | **29.4** | first ok:true after outage | `reports/drill-2-withdr.jsonl:94` |
 
-| Chỉ số | Đo được | Mục tiêu (slide §1) | Verdict |
+| Metric | Measured | Target | Verdict |
 |---|---|---|---|
-| RTO — Inference API | `__s` | 300s (5 phút) | |
-| RPO — Vector DB | `__s` / `__` doc | 300s (5 phút) | |
+| RTO - Inference API | 29.4s | 300s (5 min) | PASS |
+| RPO - Vector DB | 6.0s / 3 docs | 300s | PASS |
 
-## 3. RTO của tôi gồm những gì (bắt buộc — đây là phần chấm điểm hiểu bài)
+## 3. RTO Breakdown (required)
 
-| Thành phần | Giây | Nó đến từ đâu | Giảm được bằng cách nào |
+| Component | Seconds | Source | How to Reduce |
 |---|---|---|---|
-| Health-check detect floor | | `interval_s × threshold` trong `reports/health-events.jsonl:__` | |
-| Snapshot restore | | 2_restore → 3_scale | |
-| GPU pool warm-up | | `waited_s` ở `4_wait_ready` | |
-| DNS/LB TTL cache | | t_recovered − t_cutover | |
+| Health-check detect floor | 15.0 | interval_s x threshold | reduce interval or threshold |
+| Snapshot restore | ~0.1 | 2_restore to 3_scale | faster storage |
+| GPU pool warm-up | 0.04 | waited_s at 4_wait_ready | pre-warm target |
+| DNS/LB TTL cache | 1.8 | t_recovered - t_cutover | reduce TTL |
+| **Total** | **27.3** | | |
+
+Health check config: interval=5s, threshold=3, detect_floor=15s
