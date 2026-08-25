@@ -1,0 +1,13 @@
+{"ts": 1787636782.7757795, "iso": "2026-08-25T05:46:22", "step": 1, "name": "xac_nhan_outage"}
+{"ts": 1787636792.0998662, "iso": "2026-08-25T05:46:32", "step": 1, "name": "xac_nhan_outage", "primary_alive": false, "target_alive": true, "confirmed": true}
+{"ts": 1787636792.1008723, "iso": "2026-08-25T05:46:32", "step": 2, "name": "thong_bao_incident"}
+{"ts": 1787636792.1008723, "iso": "2026-08-25T05:46:32", "step": 2, "name": "thong_bao_incident", "operator_notified_at": 1787636792.1008723, "note": "Incident announced - failover initiated"}
+{"ts": 1787636792.1018813, "iso": "2026-08-25T05:46:32", "step": 3, "name": "scale_gpu_pool"}
+{"ts": 1787636792.2075324, "iso": "2026-08-25T05:46:32", "step": 3, "name": "scale_gpu_pool", "failover_result": true, "rpo_seconds": 6.0, "docs_lost": 3}
+{"ts": 1787636792.208524, "iso": "2026-08-25T05:46:32", "step": 4, "name": "verify_state_replica"}
+{"ts": 1787636792.2292206, "iso": "2026-08-25T05:46:32", "step": 4, "name": "verify_state_replica", "vector_count": 417, "weights_ok": true, "pool_state": "full"}
+{"ts": 1787636792.2302253, "iso": "2026-08-25T05:46:32", "step": 5, "name": "dns_cutover"}
+{"ts": 1787636792.2302253, "iso": "2026-08-25T05:46:32", "step": 5, "name": "dns_cutover", "active_region": "b", "cutover_ok": true}
+{"ts": 1787636792.2302253, "iso": "2026-08-25T05:46:32", "step": 6, "name": "verify_golden_signals"}
+{"ts": 1787636792.5799274, "iso": "2026-08-25T05:46:32", "step": 6, "name": "verify_golden_signals", "requests": 10, "errors": 0, "p95_latency_ms": 47.04, "error_rate": 0.0}
+{"ts": 1787636792.5799274, "iso": "2026-08-25T05:46:32", "step": 7, "name": "post_incident", "total_elapsed_s": 9.81, "rto_measure_command": "python tools/measure_rto.py --loadgen reports/drill-2-withdr.jsonl --target-rto 300"}

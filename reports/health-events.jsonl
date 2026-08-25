@@ -1,0 +1,1 @@
+{"ts": 1787636785.5900564, "iso": "2026-08-25T05:46:25", "event": "state_change", "region": "a", "to": "UNHEALTHY", "reason": "ConnectTimeout", "interval_s": 5.0, "threshold": 3, "consecutive_fails": 3}
