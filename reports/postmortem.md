@@ -30,11 +30,11 @@ This is by design - anti-flapping threshold prevents unnecessary failovers.
 
 ## 5. Required Questions
 
-1. **Tính `interval x threshold` và cho biết nó chiếm bao nhiêu % của RTO?**
-   - Answer: `interval x threshold` = 5s × 3 = 15s, chiếm 51% của RTO (15s / 29.4s)
+1. **Tinh interval x threshold va cho biet no chiem bao nhieu % cua RTO?**
+   - Answer: interval x threshold = 5s x 3 = 15s, chiem 51% cua RTO (15s / 29.4s)
 
-2. **Nếu giảm interval xuống 1s thì RTO giảm bao nhiêu? Có mạo hiểm không?**
-   - Answer: RTO giảm khoảng 12s (từ 29.4s xuống ~17s). Có mạo hiểm vì giảm interval tăng risk false positive - health checker có thể flip state vì transient network issue thay vì thật sự outage.
+2. **Neu giam interval xuong 1s thi RTO giam bao nhieu? Co mao hiem khong?**
+   - Answer: RTO giam khoang 12s (tu 29.4s xuong ~17s). Co mao hiem vi giam interval tang risk false positive - health checker co the flip state vi transient network issue thay vi that su outage.
 
-3. **`docs_lost` có nghĩa là gì? Tại sao con số này quan trọng với khách hàng?**
-   - Answer: `docs_lost = 3` nghĩa là 3 documents của khách hàng bị mất khi failover vì chưa được replicate từ region A sang region B. Quan trọng vì đây là data loss trực tiếp ảnh hưởng đến khách hàng - customer documents không thể truy xuất được sau disaster.
+3. **docs_lost co nghia la gi? Tai sao con so nay quan trong voi khach hang?**
+   - Answer: docs_lost = 3 nghia la 3 documents cua khach hang bi mat khi failover vi chua duoc replicate tu region A sang region B. Quan trong vi day la data loss truc tiep anh huong den khach hang - customer documents khong the truy xuat duoc sau disaster.
